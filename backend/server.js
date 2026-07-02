@@ -77,7 +77,11 @@ io.on('connection', socket => {
 
             let result;
             try {
-                result = await generateResult(prompt);
+                // ✅ CHANGED
+// AI now reconstructs the conversation from MongoDB.
+result = await generateResult({
+    projectId
+});
             } catch (error) {
                 console.error('AI Error:', error);
                 result = 'AI service temporarily unavailable.';

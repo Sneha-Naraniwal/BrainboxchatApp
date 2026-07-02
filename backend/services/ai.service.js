@@ -1,12 +1,31 @@
 import OpenAI from "openai";
+import { getMessagesByProjectId } from "./message.service.js"; // ✅ NEW
 
 const client = new OpenAI({
     apiKey: process.env.GROQ_API_KEY,
     baseURL: "https://api.groq.com/openai/v1",
 });
 
-export const generateResult = async (prompt) => {
+// ✅ CHANGED
+// Instead of receiving only the latest prompt,
+// we receive projectId and reconstruct the conversation.
+export const generateResult = async ({ projectId }) => {
     try {
+
+        // ✅ NEW
+        // Load previous conversation from MongoDB.
+        const history = await getMessagesByProjectId({
+            projectId,
+            limit: 20
+        });
+
+        // ✅ NEW
+        // Convert MongoDB messages to Groq/OpenAI message format.
+        const conversation = history.map(msg => ({
+            role: msg.sender._id === "ai" ? "assistant" : "user",
+            content: msg.message
+        }));
+
         const completion = await client.chat.completions.create({
             model: "llama-3.3-70b-versatile",
             messages: [
@@ -34,34 +53,37 @@ export const generateResult = async (prompt) => {
                 },
                 "buildCommand": {
                     "mainItem": "npm",
-                    "commands": [ "install" ]
+                    "commands": ["install"]
                 },
                 "startCommand": {
                     "mainItem": "node",
-                    "commands": [ "app.js" ]
+                    "commands": ["app.js"]
                 }
             }
             </example>
         
             <example>
-            user:Hello 
+            user:Hello
             response:{
                "text":"Hello, How can I help you today?"
             }
             </example>
-            
+
             IMPORTANT : don't use file name like routes/index.js ie. i want to say do not give any directory`
                 },
-                {
-                    role: "user",
-                    content: prompt
-                }
+
+                // ✅ NEW
+                // Feed previous user + AI conversation.
+                ...conversation
             ],
-            // Forces the model to return valid JSON output
-            response_format: { type: "json_object" } 
+
+            response_format: {
+                type: "json_object"
+            }
         });
 
         return completion.choices[0].message.content;
+
     } catch (error) {
         console.error("Error generating completion:", error);
         throw error;
